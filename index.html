@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DFA-Score: Отраслевая система рейтингования ЦФА</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; color: #333; padding: 20px; }
+.wrap { max-width: 860px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.07); }
+h1 { text-align: center; font-size: 1.5em; color: #2c3e50; margin-bottom: 4px; }
+.sub { text-align: center; color: #7f8c8d; font-size: .9em; margin-bottom: 28px; }
+
+.metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.metric { background: #f8f9fa; border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #e8ecef; }
+.metric-label { font-size: 11px; color: #7f8c8d; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
+.metric-val { font-size: 24px; font-weight: 600; color: #2c3e50; }
+
+.grade-card { display: flex; align-items: center; gap: 20px; background: #f8f9fa; border: 1px solid #e8ecef; border-radius: 12px; padding: 18px 22px; margin-bottom: 20px; }
+.grade-badge { font-size: 38px; font-weight: 700; line-height: 1; transition: color .35s; }
+.grade-info { flex: 1; }
+.grade-bar { height: 6px; border-radius: 3px; background: linear-gradient(90deg,#e74c3c 0%,#e67e22 30%,#3498db 60%,#27ae60 100%); position: relative; margin-bottom: 10px; }
+.grade-marker { position: absolute; top: -4px; width: 14px; height: 14px; border-radius: 50%; background: #2c3e50; transform: translateX(-50%); border: 2px solid #fff; box-shadow: 0 0 0 1px #ccc; transition: left .35s; }
+.grade-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; transition: color .35s; }
+.grade-rec { font-size: 13px; color: #7f8c8d; font-style: italic; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+@media (max-width: 580px) { .grid2 { grid-template-columns: 1fr; } .metrics { grid-template-columns: 1fr; } .charts-row { grid-template-columns: 1fr; } }
+
+.card { background: #fff; border: 1px solid #e8ecef; border-radius: 10px; padding: 18px; }
+.card-title { font-size: 11px; font-weight: 700; color: #7f8c8d; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 16px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
+
+.ctrl { margin-bottom: 12px; }
+.ctrl-head { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.ctrl-label { font-size: 12px; color: #555; }
+.ctrl-val { font-size: 13px; font-weight: 600; color: #3498db; }
+input[type=range] { width: 100%; accent-color: #3498db; cursor: pointer; }
+
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.chart-card { background: #fff; border: 1px solid #e8ecef; border-radius: 10px; padding: 16px; }
+.chart-card h3 { font-size: 11px; font-weight: 700; color: #7f8c8d; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+
+.history-card { background: #fff; border: 1px solid #e8ecef; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.history-card h3 { font-size: 11px; font-weight: 700; color: #7f8c8d; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+button { font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 8px; border: 1px solid #ddd; background: #f8f9fa; color: #333; cursor: pointer; transition: background .15s; }
+button:hover { background: #eef0f2; }
+button.accent { background: #3498db; color: #fff; border-color: #2980b9; }
+button.accent:hover { background: #2980b9; }
+button.danger { background: #fff; color: #e74c3c; border-color: #e74c3c; }
+button.danger:hover { background: #fdf0ef; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>DFA-Score: Отраслевая система рейтингования ЦФА</h1>
+  <p class="sub">Инструмент минимизации асимметрии информации в ИТ-секторе</p>
+
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Индекс надёжности</div><div class="metric-val" id="mRel">—</div></div>
+    <div class="metric"><div class="metric-label">Привлекательность</div><div class="metric-val" id="mAttr">—</div></div>
+    <div class="metric"><div class="metric-label">R_cfa</div><div class="metric-val" id="mTotal">—</div></div>
+  </div>
+
+  <div class="grade-card">
+    <div class="grade-badge" id="gradeBadge">—</div>
+    <div class="grade-info">
+      <div class="grade-bar"><div class="grade-marker" id="gradeMarker" style="left:50%"></div></div>
+      <div class="grade-name" id="gradeName">—</div>
+      <div class="grade-rec" id="gradeRec">—</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">1. Индекс надёжности (I_rel)</div>
+      <div class="ctrl">
+        <div class="ctrl-head"><span class="ctrl-label">Финансовая устойчивость (F)</span><span class="ctrl-val" id="vF">70</span></div>
+        <input type="range" min="0" max="100" value="70" id="F" oninput="calc()">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-head"><span class="ctrl-label">Информ. прозрачность (T)</span><span class="ctrl-val" id="vT">60</span></div>
+        <input type="range" min="0" max="100" value="60" id="T" oninput="calc()">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-head"><span class="ctrl-label">Надёжность платформы (O)</span><span class="ctrl-val" id="vO">80</span></div>
+        <input type="range" min="0" max="100" value="80" id="O" oninput="calc()">
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">2. Индекс привлекательности (I_attr)</div>
+      <div class="ctrl">
+        <div class="ctrl-head"><span class="ctrl-label">Премия за риск (Y)</span><span class="ctrl-val" id="vY">65</span></div>
+        <input type="range" min="0" max="100" value="65" id="Y" oninput="calc()">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-head"><span class="ctrl-label">Ликвидность и срок (L)</span><span class="ctrl-val" id="vL">50</span></div>
+        <input type="range" min="0" max="100" value="50" id="L" oninput="calc()">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-head"><span class="ctrl-label">Структурная защита (S)</span><span class="ctrl-val" id="vS">60</span></div>
+        <input type="range" min="0" max="100" value="60" id="S" oninput="calc()">
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card">
+      <h3>Декомпозиция факторов</h3>
+      <div style="position:relative;height:200px;"><canvas id="radar" role="img" aria-label="Радарная диаграмма факторов рейтинга"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Структура R_cfa</h3>
+      <div style="position:relative;height:200px;"><canvas id="donut" role="img" aria-label="Кольцевая диаграмма индексов"></canvas></div>
+    </div>
+  </div>
+
+  <div class="history-card">
+    <h3>История изменений R_cfa</h3>
+    <div style="position:relative;height:130px;"><canvas id="histChart" role="img" aria-label="График истории значений рейтинга"></canvas></div>
+  </div>
+
+  <div class="btn-row">
+    <button onclick="resetAll()">↺ Сбросить</button>
+    <button class="accent" onclick="saveSnapshot()">+ Сохранить сценарий</button>
+    <button class="danger" onclick="clearHistory()">Очистить историю</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const gradeColors = { 'A-CFA':'#27ae60','B-CFA':'#2980b9','C-CFA':'#e67e22','D-CFA':'#e74c3c' };
+const gradePos    = { 'A-CFA':92,'B-CFA':67,'C-CFA':45,'D-CFA':15 };
+
+let history = [];
+let snapCount = 1;
+let lastR = null;
+
+function hexToRgba(hex, a) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+const radarChart = new Chart(document.getElementById('radar'), {
+  type: 'radar',
+  data: {
+    labels: ['F','T','O','Y','L','S'],
+    datasets: [{
+      label: 'Значение',
+      data: [70,60,80,65,50,60],
+      backgroundColor: 'rgba(41,128,185,.15)',
+      borderColor: '#2980b9',
+      borderWidth: 1.5,
+      pointBackgroundColor: '#2980b9',
+      pointRadius: 3,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      r: {
+        min: 0, max: 100,
+        ticks: { stepSize: 25, color: '#999', font: { size: 10 }, backdropColor: 'transparent' },
+        grid: { color: 'rgba(0,0,0,.08)' },
+        angleLines: { color: 'rgba(0,0,0,.08)' },
+        pointLabels: { color: '#555', font: { size: 11 } }
+      }
+    }
+  }
+});
+
+const donutChart = new Chart(document.getElementById('donut'), {
+  type: 'doughnut',
+  data: {
+    labels: ['I_rel (70%)', 'I_attr (30%)'],
+    datasets: [{
+      data: [68, 61.5],
+      backgroundColor: ['#2980b9','#27ae60'],
+      borderWidth: 0,
+      hoverOffset: 4,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    cutout: '68%',
+    plugins: {
+      legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, color: '#555', boxWidth: 12 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}` } }
+    }
+  }
+});
+
+const histChart = new Chart(document.getElementById('histChart'), {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      label: 'R_cfa',
+      data: [],
+      borderColor: '#2980b9',
+      borderWidth: 2,
+      pointRadius: 4,
+      pointBackgroundColor: '#2980b9',
+      backgroundColor: 'rgba(41,128,185,.08)',
+      fill: true,
+      tension: 0.35,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#999', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.06)' } },
+      y: { min: 0, max: 100, ticks: { color: '#999', font: { size: 10 }, stepSize: 25 }, grid: { color: 'rgba(0,0,0,.06)' } }
+    }
+  }
+});
+
+function calc() {
+  const F = +document.getElementById('F').value;
+  const T = +document.getElementById('T').value;
+  const O = +document.getElementById('O').value;
+  const Y = +document.getElementById('Y').value;
+  const L = +document.getElementById('L').value;
+  const S = +document.getElementById('S').value;
+
+  ['F','T','O','Y','L','S'].forEach(k => document.getElementById('v'+k).textContent = +document.getElementById(k).value);
+
+  const iRel  = 0.5*F + 0.3*T + 0.2*O;
+  const iAttr = 0.5*Y + 0.3*L + 0.2*S;
+  const rCfa  = 0.7*iRel + 0.3*iAttr;
+
+  document.getElementById('mRel').textContent   = iRel.toFixed(1);
+  document.getElementById('mAttr').textContent  = iAttr.toFixed(1);
+  document.getElementById('mTotal').textContent = rCfa.toFixed(1);
+
+  let grade, name, rec;
+  if (rCfa >= 85)      { grade='A-CFA'; name='Prime';            rec='Рекомендуется для консервативных портфелей.'; }
+  else if (rCfa >= 65) { grade='B-CFA'; name='Investment Grade'; rec='Допустимо для диверсификации ИТ-активов.'; }
+  else if (rCfa >= 40) { grade='C-CFA'; name='Speculative';      rec='Только для квалифицированных инвесторов.'; }
+  else                 { grade='D-CFA'; name='Distressed';       rec='Запрет на инвестирование. Критический риск.'; }
+
+  const col = gradeColors[grade];
+  document.getElementById('gradeBadge').textContent = grade;
+  document.getElementById('gradeBadge').style.color = col;
+  document.getElementById('gradeName').textContent = name;
+  document.getElementById('gradeName').style.color = col;
+  document.getElementById('gradeRec').textContent = rec;
+  document.getElementById('gradeMarker').style.left = gradePos[grade] + '%';
+
+  radarChart.data.datasets[0].data = [F,T,O,Y,L,S];
+  radarChart.data.datasets[0].backgroundColor = hexToRgba(col, 0.18);
+  radarChart.data.datasets[0].borderColor = col;
+  radarChart.data.datasets[0].pointBackgroundColor = col;
+  radarChart.update('none');
+
+  donutChart.data.datasets[0].data = [iRel.toFixed(1), iAttr.toFixed(1)];
+  donutChart.update('none');
+
+  pushHistory(rCfa, col);
+}
+
+function pushHistory(r, col) {
+  if (lastR === r) return;
+  lastR = r;
+  if (history.length > 20) history.shift();
+  history.push(r);
+  const labels = history.map((_,i) => i === history.length-1 ? 'now' : '');
+  histChart.data.labels = labels;
+  histChart.data.datasets[0].data = [...history];
+  histChart.data.datasets[0].borderColor = col;
+  histChart.data.datasets[0].pointBackgroundColor = col;
+  histChart.data.datasets[0].backgroundColor = hexToRgba(col, 0.08);
+  histChart.update();
+}
+
+function saveSnapshot() {
+  const label = 'С' + snapCount++;
+  if (histChart.data.labels.length > 0)
+    histChart.data.labels[histChart.data.labels.length-1] = label;
+  histChart.update();
+}
+
+function clearHistory() {
+  history = []; lastR = null; snapCount = 1;
+  histChart.data.labels = [];
+  histChart.data.datasets[0].data = [];
+  histChart.update();
+}
+
+function resetAll() {
+  const def = { F:70, T:60, O:80, Y:65, L:50, S:60 };
+  for (const [k,v] of Object.entries(def)) document.getElementById(k).value = v;
+  calc();
+}
+
+calc();
+</script>
+</body>
+</html>
